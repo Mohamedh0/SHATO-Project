@@ -24,3 +24,28 @@ http://localhost:5000
   "message": "Server Is Running!"
 }
 ```
+## Example Commands
+
+### 1. move_to
+```json
+{
+  "command": "move_to",
+  "command_params": { "x": 10, "y": -5 }
+}
+```
+
+### 2. rotate
+```json
+{
+  "command": "rotate",
+  "command_params": { "angle": 90.0, "direction": "clockwise" }
+}
+```
+
+### 3. start_patrol
+```json
+{
+  "command": "start_patrol",
+  "command_params": { "route_id": "first_floor", "speed": "fast", "repeat_count": 3 }
+}
+```
