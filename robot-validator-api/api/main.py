@@ -29,4 +29,4 @@ async def execute_command(request: Request):
         return JSONResponse(status_code=400, content={"correlation_id": correlation_id, **result})
 
     logger.info(f"[{correlation_id}] [ROBOT-VALIDATOR-SUCCESS] Valid command: {result.command}")
-    return {"correlation_id": correlation_id, "message": "Command validated", "data": result.dict()}
+    return {"correlation_id": correlation_id, "message": "Command validated", "data": result.model_dump()}
