@@ -30,7 +30,7 @@ def transcribe_audio(audio_data: bytes) -> str:
             # Ensure float32 dtype
             waveform = waveform.to(torch.float32)
 
-            # Whisper expects shape: (samples,) not (1, samples)
+            # Whisper expects shape: (samples,)
             input_features = processor(
                 waveform.squeeze(0),
                 sampling_rate=16000,
