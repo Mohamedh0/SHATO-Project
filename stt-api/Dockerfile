@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/ ./api/
 
 # Expose port
-EXPOSE 5000
+EXPOSE 8002
 
 # Run the application (main.py is inside /app/api/)
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8002"]
