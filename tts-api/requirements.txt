@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+TTS        # Coqui TTS library (pulls torch etc.)
+pydantic
+python-multipart  # if you later support multipart uploads
+soundfile         # for audio I/O
