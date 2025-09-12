@@ -34,3 +34,8 @@ http://localhost:8002
   - Key: `audio`
   - Type: File
   - Value: Select a `.wav` file (e.g., `sample.wav`)
+  ```json
+  {
+    "text": " The stale smell of old beer lingers. It takes heat to bring out the odor. A cold dip restores health in zest. A salt pickle tastes fine with ham. Tacos all pastora are my favorite. A zestful food is the hot cross bun."
+  }
+  ```
