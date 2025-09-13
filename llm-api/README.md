@@ -2,12 +2,22 @@
 
 A FastAPI service for converting natural language instructions into robot commands using Large Language Models.
 
-### Create LLM FastAPI Service
+## LLM Integration
 
-- Implemented the initial FastAPI application with `/health` and `/infer` endpoints.
-- `/health` returns a simple health check message to confirm the service is running.
-- `/infer` currently returns a **dummy robot command** (`move_to`) but passes through the **LLM validator** to ensure the output complies with the schema.
-- This setup makes the service fully testable and ready for integration with the real LLM model in later tasks.
+The `/infer` endpoint converts natural language instructions into validated robot commands.
+
+### How it works
+1. Input prompt is sent as JSON to `POST /infer`.
+2. The model generates output based on configuration in `config/model_config.yaml`.
+3. The output is parsed and validated against strict schemas in `api/schema.py`.
+4. If valid, a structured command is returned; otherwise, an error response is given.
+
+### Example request
+```bash
+curl -X POST http://localhost:8000/infer \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Move the robot to coordinates (5, -2)"}'
+
 
 
 ## Quick Start
