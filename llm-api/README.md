@@ -2,6 +2,14 @@
 
 A FastAPI service for converting natural language instructions into robot commands using Large Language Models.
 
+### Create LLM FastAPI Service
+
+- Implemented the initial FastAPI application with `/health` and `/infer` endpoints.
+- `/health` returns a simple health check message to confirm the service is running.
+- `/infer` currently returns a **dummy robot command** (`move_to`) but passes through the **LLM validator** to ensure the output complies with the schema.
+- This setup makes the service fully testable and ready for integration with the real LLM model in later tasks.
+
+
 ## Quick Start
 
 ### Using Docker
