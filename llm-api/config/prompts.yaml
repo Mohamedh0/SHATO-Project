@@ -50,7 +50,7 @@ prompt_settings:
   max_retries: 3
   temperature: 0.1  # Low temperature for consistent output
   top_p: 0.9
-  max_tokens: 200
+  max_tokens: 80
   stop_sequences: ["\n\n", "Human:", "Assistant:"]
   
 # Validation rules
