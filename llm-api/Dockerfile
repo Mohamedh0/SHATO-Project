@@ -21,9 +21,15 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code (api + config)
+# Copy source code (api, config, and tests)
 COPY api/ ./api/
 COPY config/ ./config/
+
+# Copy the download script
+COPY download_model.py .
+
+# Download the model during build time
+RUN python download_model.py
 
 # Expose port
 EXPOSE 8000
