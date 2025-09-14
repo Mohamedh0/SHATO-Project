@@ -9,7 +9,7 @@ from transformers import (
     BitsAndBytesConfig
 )
 
-def load_yaml_config(file_name: str) -> dict :
+def load_yaml_config(file_name: str) -> dict:
     """Load a YAML configuration file from the config directory."""
     path = Path(__file__).resolve().parent.parent / "config" / file_name
     with open(path, "r") as f:
@@ -22,32 +22,45 @@ MODEL_ID = model_config["model"]["name"]
 MAX_LENGTH = model_config["model"]["max_length"]
 TEMPERATURE = model_config["model"]["temperature"]
 
-# Configure quantization if enabled
-quant_config = None
-if model_config.get("quantization", {}).get("enabled", False):
-    quant_config = BitsAndBytesConfig(
-        load_in_4bit=(model_config["quantization"]["method"] == "4bit"),
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4"
-    )
+# Global variables for model and tokenizer
+model = None
+tokenizer = None
 
-# Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+def load_model():
+    """Load the model and tokenizer (called once at startup)"""
+    global model, tokenizer
+    
+    # Configure quantization if enabled
+    quant_config = None
+    if model_config.get("quantization", {}).get("enabled", False):
+        quant_config = BitsAndBytesConfig(
+            load_in_4bit=(model_config["quantization"]["method"] == "4bit"),
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4"
+        )
 
-# Load model 
-if quant_config:
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
-        device_map="auto",
-        quantization_config=quant_config,
-        trust_remote_code=True
-    )
-else:
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID,
-        device_map="auto"
-    )
+    # Load tokenizer
+    print(f"Loading tokenizer: {MODEL_ID}")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
+
+    # Load model 
+    print(f"Loading model: {MODEL_ID}")
+    if quant_config:
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_ID,
+            device_map="auto",
+            quantization_config=quant_config,
+            trust_remote_code=True
+        )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_ID,
+            device_map="auto",
+            trust_remote_code=True
+        )
+    
+    print("Model and tokenizer loaded successfully!")
 
 # Command generation
 
@@ -98,6 +111,10 @@ def generate_command(user_instruction: str) -> dict:
     Returns a dict with either {"command": ..., "command_params": ...}
     or {"error": ..., "raw_output": ...}.
     """
+    # Ensure model is loaded
+    if model is None or tokenizer is None:
+        raise RuntimeError("Model not loaded. Call load_model() first.")
+    
     # Build the prompt
     prompt = SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE.format(instruction=user_instruction)
 
