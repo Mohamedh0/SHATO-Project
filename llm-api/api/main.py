@@ -1,42 +1,89 @@
+# api/main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-from api.schema import HealthResponse
-from api.llm_validator import parse_and_validate_llm_output
-from model import generate_command  
+from fastapi.middleware.cors import CORSMiddleware
+from .model import load_model, generate_command
+from .schema import CommandRequest, SuccessResponse, HealthResponse
+import logging
 
-app = FastAPI(title="LLM API Service")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Health check endpoint
+# Global variable to track model loading status
+model_loaded = False
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup code
+    global model_loaded
+    try:
+        logger.info("Starting model loading...")
+        load_model()
+        model_loaded = True
+        logger.info("Model loaded successfully!")
+    except Exception as e:
+        logger.error(f"Failed to load model: {e}")
+        model_loaded = False
+    yield
+
+app = FastAPI(
+    title="LLM Robot Command API",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/", response_model=HealthResponse)
+async def root():
+    return HealthResponse(
+        message=f"LLM API is running. Model loaded: {model_loaded}"
+    )
+
+@app.post("/generate", response_model=SuccessResponse)
+async def generate(request: CommandRequest):
+    """Generate a robot command from natural language instruction"""
+    if not model_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="Model not loaded. Service unavailable."
+        )
+    
+    try:
+        result = generate_command(request.text)
+        
+        # Check if the result contains an error
+        if "error" in result:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Command generation failed: {result.get('error', 'unknown_error')}"
+            )
+        
+        return SuccessResponse(
+            command=result["command"],
+            command_params=result["command_params"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating command: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing request: {str(e)}"
+        )
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    return {"message": "ok"}
-
-
-# Inference endpoint
-@app.post("/infer")
-async def infer(prompt: dict):
-    """
-    Receives a natural language prompt (user instruction),
-    generates a robot command using the LLM,
-    validates it against the schema,
-    and returns either a valid command or an error.
-    """
-
-    # 1) Generate LLM output from user instruction ---
-    user_instruction = prompt.get("prompt")
-    if not user_instruction:
-        raise HTTPException(status_code=400, detail={"error": "missing_prompt"})
-
-    llm_output_dict = generate_command(user_instruction)
-
-    # 2) Convert dict back to string for validator ---
-    import json
-    llm_output_str = json.dumps(llm_output_dict)
-
-    # 3) Validate using the provided validator ---
-    success, result = parse_and_validate_llm_output(llm_output_str)
-
-    if not success:
-        raise HTTPException(status_code=400, detail=result)
-
-    # 4) Return validated response ---
-    return result
+    status = "healthy" if model_loaded else "unhealthy"
+    return HealthResponse(
+        message=f"Service is {status}. Model loaded: {model_loaded}"
+    )
