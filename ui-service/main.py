@@ -48,7 +48,7 @@ def pipeline(audio_file):
 
 # Gradio UI
 with gr.Blocks() as app:
-    gr.Markdown("## 🎤 Voice Input → Orchestrator")
+    gr.Markdown("# SHATO Robot")
 
     with gr.Row():
         audio_input = gr.Audio(
