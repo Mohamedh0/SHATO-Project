@@ -1,38 +1,42 @@
-# Python Image
+# ---------- Base Image ----------
 FROM python:3.11-slim
 
-# Install system dependencies (needed for Hugging Face / bitsandbytes)
+# ---------- Install build dependencies ----------
 RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
     git \
     git-lfs \
-    libglib2.0-0 \
-    libsm6 \
-    libxrender1 \
-    libxext6 \
- && git lfs install \
- && rm -rf /var/lib/apt/lists/*
+    wget \
+    file \
+    && rm -rf /var/lib/apt/lists/*
 
-# Working Directory
+# ---------- Configure Git LFS ----------
+RUN git lfs install
+
+# ---------- Set working directory ----------
 WORKDIR /app
 
-# Copy requirements
+# ---------- Copy requirements first for caching ----------
 COPY requirements.txt .
 
-# Install Python dependencies
+# ---------- Install Python dependencies ----------
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code (api, config, and tests)
-COPY api/ ./api/
-COPY config/ ./config/
+# ---------- Copy application code ----------
+COPY . /app
 
-# Copy the download script
-COPY download_model.py .
+# ---------- Download Qwen2-1.5B-Instruct GGUF model ----------
+ARG HF_TOKEN
+RUN mkdir -p /app/models && \
+    wget --header="Authorization: Bearer ${HF_TOKEN}" \
+         -O /app/models/qwen2-1_5b-instruct-q4_k_m.gguf \
+         https://huggingface.co/Qwen/Qwen2-1.5B-Instruct-GGUF/resolve/main/qwen2-1_5b-instruct-q4_k_m.gguf && \
+    ls -lh /app/models/qwen2-1_5b-instruct-q4_k_m.gguf && \
+    file /app/models/qwen2-1_5b-instruct-q4_k_m.gguf | grep -q "data" || (echo "Model file invalid" && exit 1)
 
-# Download the model during build time
-RUN python download_model.py
-
-# Expose port
+# ---------- Expose port ----------
 EXPOSE 8000
 
-# Run FastAPI app (main.py inside api/)
+# ---------- Run FastAPI ----------
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
