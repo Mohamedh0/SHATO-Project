@@ -26,7 +26,7 @@ curl -X POST http://localhost:8000/infer \
 
 ```bash
 # Build the image
-docker build -t llm-api .
+docker build --build-arg HF_TOKEN=hf_value -t llm-api .
 
 # Run the container
 docker run -p 8000:8000 llm-api
