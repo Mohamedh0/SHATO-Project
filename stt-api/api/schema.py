@@ -1,7 +1,8 @@
 from pydantic import BaseModel
 
 class HealthResponse(BaseModel):
-    message:str
+    message: str
 
 class TranscribeResponse(BaseModel):
-    text:str
+    id_correlation: str
+    text: str
