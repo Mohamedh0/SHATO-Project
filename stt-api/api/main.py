@@ -1,6 +1,8 @@
 from fastapi import FastAPI, UploadFile, File
 from .schema import HealthResponse, TranscribeResponse
 from .utils import transcribe_audio
+from pydantic import BaseModel
+BaseModel.model_config = {"arbitrary_types_allowed": True}
 
 app = FastAPI(
     title="stt_service",
