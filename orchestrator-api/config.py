@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    orchestrator_port: int = 8500  # ✅ default value added
+    orchestrator_port: int = 8500  
     stt_url: str
     llm_url: str
     validator_url: str
