@@ -4,6 +4,8 @@ from .schema import HealthResponse
 from .validator import validate_command
 import logging
 import uuid
+from pydantic import BaseModel
+BaseModel.model_config = {"arbitrary_types_allowed": True}
 
 app = FastAPI(
     title="Robot Validator API",
