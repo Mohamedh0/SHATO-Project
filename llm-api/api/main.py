@@ -8,6 +8,8 @@ from api.utils import (
     log_response,
     generate_command,
 )
+from pydantic import BaseModel
+BaseModel.model_config = {"arbitrary_types_allowed": True}
 
 app = FastAPI(title="Robot Command API")
 
