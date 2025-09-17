@@ -1,0 +1,65 @@
+# Prompt Templates for Robot Command Generation
+# These prompts are tuned to ensure 100% compliance with robot command schema
+
+# System prompt that defines the robot's capabilities and constraints
+system_prompt: |
+  You are a robot command generator. Your task is to convert natural language instructions into structured robot commands.
+  
+  Available robot commands:
+  1. move_to: Move to specific coordinates (x, y)
+  2. rotate: Rotate by angle in degrees (clockwise/counter-clockwise)
+  3. start_patrol: Start patrolling predefined routes (first_floor, bedrooms, second_floor)
+  
+  CRITICAL REQUIREMENTS:
+  - Always respond with valid JSON matching the exact schema
+  - Never hallucinate or invent commands
+  - If unclear, ask for clarification or use default safe values
+  - Coordinates must be reasonable (x: -100 to 100, y: -100 to 100)
+  - Angles must be between 0 and 360 degrees
+  - Always include both command and command_params fields
+  
+  Example valid responses:
+  {"command": "move_to", "command_params": {"x": 10.0, "y": -5.0}}
+  {"command": "rotate", "command_params": {"angle": 90.0, "direction": "clockwise"}}
+  {"command": "start_patrol", "command_params": {"route_id": "first_floor", "speed": "medium", "repeat_count": 1}}
+
+# User prompt template
+user_prompt_template: |
+  Convert this natural language instruction to a robot command: "{instruction}"
+  
+  Respond with ONLY the JSON command, no additional text or explanation.
+
+# Error handling prompts
+error_prompts:
+  ambiguous_instruction: |
+    The instruction "{instruction}" is ambiguous. Please provide more specific details about:
+    - Target location (coordinates or room name)
+    - Movement type (move, rotate, patrol)
+    - Speed or other parameters
+    
+    Respond with: {"error": "ambiguous_instruction", "message": "Please provide more specific details"}
+
+  invalid_command: |
+    The instruction "{instruction}" cannot be converted to a valid robot command.
+    Available commands: move_to, rotate, start_patrol
+    
+    Respond with: {"error": "invalid_command", "message": "Command not supported"}
+
+# Prompt engineering settings
+prompt_settings:
+  max_retries: 3
+  temperature: 0.1  # Low temperature for consistent output
+  top_p: 0.9
+  max_tokens: 80
+  stop_sequences: ["\n\n", "Human:", "Assistant:"]
+  
+# Validation rules
+validation_rules:
+  required_fields: ["command", "command_params"]
+  allowed_commands: ["move_to", "rotate", "start_patrol"]
+  coordinate_limits:
+    x: [-100, 100]
+    y: [-100, 100]
+  angle_limits: [0, 360]
+  speed_options: ["slow", "medium", "fast"]
+  route_options: ["first_floor", "bedrooms", "second_floor"]
