@@ -1,12 +1,10 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Dict, Any, Optional
 
-
 class HealthResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str
     correlation_id: str
-
 
 class CommandRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -17,7 +15,11 @@ class CommandRequest(BaseModel):
         max_length=1000,
         json_schema_extra={"example": "Shato move to coordinates 10 and -5"},
     )
-
+    correlation_id: Optional[str] = Field(
+        None,
+        description="Unique correlation ID for tracing requests",
+        json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"},
+    )
 
 class SuccessResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")

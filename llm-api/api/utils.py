@@ -81,7 +81,7 @@ def generate_command(instruction: str) -> dict:
     prompt = SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE.format(instruction=instruction)
     output = llm(
         prompt,
-        max_tokens=256,
+        max_tokens=128,
         temperature=0.7,
         stop=["User:"],
     )
