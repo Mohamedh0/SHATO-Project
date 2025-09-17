@@ -22,7 +22,7 @@ COPY api /app/api
 # create logs directory
 RUN mkdir -p /app/logs && chmod 755 /app/logs
 
-EXPOSE 7000
+EXPOSE 8003
 
 # Use uvicorn with better logging configuration
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7000", "--log-level", "info", "--access-log"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8003", "--log-level", "info", "--access-log"]

@@ -8,14 +8,12 @@ import uuid
 import time
 from typing import Optional
 from contextvars import ContextVar
-
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
+BaseModel.model_config = {"arbitrary_types_allowed": True}
 from .schema import SpeakRequest, SpeakResponse
-
-# Coqui TTS API
 from TTS.api import TTS
 
 # Configure structured logging
