@@ -1,71 +1,103 @@
 import gradio as gr
 import requests
 import base64
-import tempfile
+import uuid
 import os
 
-# Orchestrator API URL
-ORCHESTRATOR_URL = "http://localhost:9000/orchestrator"
+import gradio_client.utils as gu
 
-def pipeline(audio_file):
+# --- PATCH for Gradio's JSON Schema bug ---
+_original_json_schema_to_python_type = gu._json_schema_to_python_type
+
+def _patched_json_schema_to_python_type(schema, defs=None):
+    if isinstance(schema, bool):  # Fix: handle True/False schema
+        return "dict[str, any]" if schema else "dict[str, None]"
+    return _original_json_schema_to_python_type(schema, defs)
+
+gu._json_schema_to_python_type = _patched_json_schema_to_python_type
+
+# Orchestrator API URL
+ORCHESTRATOR_URL = os.getenv(
+    "ORCHESTRATOR_URL",
+    "ORCHESTRATOR_URL=http://orchestrator:8500/voice_flow"  
+)
+
+
+def process_audio(file_path):
     """
-    Send recorded audio to the Orchestrator, handle both transcription (text) 
-    and TTS response (audio).
+    Sends the recorded/uploaded audio to the Orchestrator API
+    and returns transcription text and/or TTS audio.
     """
-    if audio_file is None:
-        return "No audio recorded.", None
+    if not file_path:
+        return "⚠️ Please upload or record an audio file first.", None
 
     try:
-        # Send the file multipart/form-data
-        with open(audio_file, "rb") as f:
-            files = {"audio": f}
-            response = requests.post(ORCHESTRATOR_URL, files=files)
+        with open(file_path, "rb") as f:
+            files = {"audio": ("input_audio.wav", f, "audio/wav")}
+            headers = {"id_correlation": str(uuid.uuid4())}
 
-        if response.status_code == 200:
-            data = response.json()
+            resp = requests.post(ORCHESTRATOR_URL, files=files, headers=headers)
 
-            # Case 1: Orchestrator returns text only
-            if "text" in data and "audio_base64" not in data:
-                return data["text"], None
+        if not resp.ok:
+            return f"❌ Error {resp.status_code}: {resp.text}", None
 
-            # Case 2: Orchestrator returns TTS response with audio
-            if "audio_base64" in data:
-                audio_bytes = base64.b64decode(data["audio_base64"])
+        try:
+            data = resp.json()
+        except ValueError:
+            return "❌ Invalid JSON response from Orchestrator", None
 
-                # Save to temp wav file
-                tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-                tmp_file.write(audio_bytes)
-                tmp_file.close()
+        # --- Extract pipeline outputs ---
+        transcription = None
+        tts_audio_path = None
 
-                return "Audio generated successfully.", tmp_file.name
+        # STT
+        if "stt" in data and "text" in data["stt"]:
+            transcription = data["stt"]["text"]
 
-            return "Unexpected response format.", None
-        else:
-            return f"Error: {response.status_code} - {response.text}", None
+        # TTS audio
+        if "tts" in data and "audio_base64" in data["tts"]:
+            audio_bytes = base64.b64decode(data["tts"]["audio_base64"])
+            tts_audio_path = "tts_output.wav"
+            with open(tts_audio_path, "wb") as out_f:
+                out_f.write(audio_bytes)
 
-    except requests.exceptions.ConnectionError:
-        return "Error: Could not connect to the orchestrator API.", None
+        return transcription or "⚠️ No transcription available", tts_audio_path
 
-# Gradio UI
-with gr.Blocks() as app:
-    gr.Markdown("# SHATO Robot")
+    except Exception as e:
+        return f"❌ Connection error: {e}", None
+
+
+# --- Build Gradio Interface ---
+with gr.Blocks() as demo:
+    gr.Markdown("## 🎙️ SHATO Robot")
+    gr.Markdown("Upload or record your **voice command** and let SHATO process it end-to-end.")
 
     with gr.Row():
         audio_input = gr.Audio(
-            sources=["microphone"], type="filepath", label="Record your voice"
+            sources=["microphone", "upload"],
+            type="filepath",
+            label="🎤 Record or Upload Audio"
         )
 
-    record_btn = gr.Button("Send to Orchestrator")
-
     with gr.Row():
-        text_output = gr.Textbox(label="Transcription / Status")
-        audio_output = gr.Audio(label="TTS Output", type="filepath")
+        trans_output = gr.Textbox(label="📝 Transcription")
+        tts_output = gr.Audio(label="🔊 TTS Output", type="filepath")
 
-    record_btn.click(
-        fn=pipeline,
+    submit_btn = gr.Button("🚀 Send to Orchestrator")
+
+    submit_btn.click(
+        fn=process_audio,
         inputs=audio_input,
-        outputs=[text_output, audio_output]
+        outputs=[trans_output, tts_output]
     )
 
+
+# Launch the app
 if __name__ == "__main__":
-    app.launch(server_name="0.0.0.0", server_port=7860, share=False)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        show_api=False,
+        inbrowser=False
+    )
