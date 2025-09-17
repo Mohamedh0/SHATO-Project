@@ -1,6 +1,7 @@
+# orchestrator.py
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Callable
 import httpx
 import uuid
@@ -15,7 +16,6 @@ from config import settings
 # ---------- Logging / Observability Setup ----------
 
 correlation_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("correlation_id", default="")
-
 
 def configure_logging() -> None:
     logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
@@ -33,7 +33,6 @@ def configure_logging() -> None:
         ),
         cache_logger_on_first_use=True,
     )
-
 
 logger = structlog.get_logger(settings.service_name)
 
@@ -55,13 +54,13 @@ def init_tracing(app: FastAPI) -> None:
     if not settings.enable_tracing:
         return
     try:
-        from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+        from opentelemetry import trace  # type: ignore
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter  # type: ignore
+        from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
+        from opentelemetry.sdk.resources import SERVICE_NAME, Resource  # type: ignore
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # type: ignore
 
         resource = Resource.create({SERVICE_NAME: settings.service_name})
         provider = TracerProvider(resource=resource)
@@ -81,7 +80,7 @@ def init_metrics(app: FastAPI) -> None:
     if not settings.enable_metrics:
         return
     try:
-        from prometheus_fastapi_instrumentator import Instrumentator
+        from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore
 
         Instrumentator().instrument(app).expose(app, include_in_schema=False)
         logger.info("metrics_initialized")
@@ -107,16 +106,23 @@ async def correlation_and_logging_middleware(request: Request, call_next: Callab
         logger.error("request_exception", duration_ms=duration_ms, error=str(exc))
         raise
     duration_ms = int((time.time() - start_time) * 1000)
-    response.headers[settings.correlation_header] = cid
+    # Ensure header is set on the response (some responses may not have headers object)
+    try:
+        response.headers[settings.correlation_header] = cid
+    except Exception:
+        # if response doesn't allow header mutation, ignore but keep logging
+        logger.warning("response_headers_not_mutable")
     logger.info("request_end", status_code=response.status_code, duration_ms=duration_ms)
     return response
 
 
-# ---------- Request / Response Schemas ----------
+# ---------- Request / Response Schemas (Pydantic v2) ----------
 
 class InferRequest(BaseModel):
     text: str
     correlation_id: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")  # forbid unexpected extras
 
 
 class ExecuteRequest(BaseModel):
@@ -124,12 +130,16 @@ class ExecuteRequest(BaseModel):
     command_params: dict
     correlation_id: Optional[str] = None
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class SpeakRequest(BaseModel):
     text: str
     voice: Optional[str] = None
     speed: Optional[float] = None
     correlation_id: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 # ---------- Utility ----------
@@ -146,15 +156,36 @@ async def call_service(method: str, url: str, **kwargs):
         try:
             resp = await client.request(method, url, **kwargs)
             resp.raise_for_status()
-            data = resp.json()
+            # attempt to decode json; if not JSON, return text
+            try:
+                data = resp.json()
+            except ValueError:
+                data = {"text": resp.text}
             logger.info("service_call_success", method=method, url=url, status=resp.status_code)
             return data
         except httpx.RequestError as e:
             logger.error("service_call_request_error", method=method, url=url, error=str(e))
             raise HTTPException(status_code=503, detail=f"Service unreachable: {url} ({e})")
         except httpx.HTTPStatusError as e:
-            logger.error("service_call_http_error", method=method, url=url, status=getattr(e.response, "status_code", None), body=getattr(e.response, "text", None))
-            raise HTTPException(status_code=resp.status_code, detail=f"Service returned error: {resp.text}")
+            # prefer using the response on the exception
+            resp = getattr(e, "response", None)
+            body = None
+            status_code = None
+            if resp is not None:
+                status_code = resp.status_code
+                try:
+                    body = resp.text
+                except Exception:
+                    body = "<unreadable response body>"
+            logger.error(
+                "service_call_http_error",
+                method=method,
+                url=url,
+                status=status_code,
+                body=body,
+            )
+            # surface the service's error text when available
+            raise HTTPException(status_code=status_code or 502, detail=f"Service returned error: {body or str(e)}")
 
 
 # ---------- Endpoints ----------
@@ -176,7 +207,7 @@ async def transcribe(audio: UploadFile = File(...)):
 @app.post("/infer")
 async def infer(request: InferRequest):
     """Send text to LLM service to get command + params."""
-    payload = request.dict(exclude_none=True)
+    payload = request.model_dump(exclude_none=True)
     result = await call_service("POST", settings.llm_url, json=payload)
     return result
 
@@ -184,7 +215,9 @@ async def infer(request: InferRequest):
 @app.post("/execute")
 async def execute(request: ExecuteRequest):
     """Send command to validator service to check if it's valid."""
-    payload = request.dict(exclude_none=True)
+    payload = request.model_dump(exclude_none=True)
+    # Remove correlation_id if present so validator with extra="forbid" won't reject
+    payload.pop("correlation_id", None)
     result = await call_service("POST", settings.validator_url, json=payload)
     return result
 
@@ -192,7 +225,9 @@ async def execute(request: ExecuteRequest):
 @app.post("/speak")
 async def speak(request: SpeakRequest):
     """Send text to TTS service and get back audio."""
-    payload = request.dict(exclude_none=True)
+    payload = request.model_dump(exclude_none=True)
+    # keep correlation header at HTTP header level (call_service already adds it)
+    payload.pop("correlation_id", None)
     result = await call_service("POST", settings.tts_url, json=payload)
     return result
 
@@ -215,11 +250,14 @@ async def voice_flow(audio: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="STT service did not return text")
 
     # Step 2: LLM inference
-    llm_payload = {"text": text, "correlation_id": str(uuid.uuid4())}
+    current_cid = correlation_id_ctx.get() or str(uuid.uuid4())
+    llm_payload = {"text": text, "correlation_id": current_cid}
     llm_result = await call_service("POST", settings.llm_url, json=llm_payload)
 
     # Step 3: Validation
-    validator_result = await call_service("POST", settings.validator_url, json=llm_result)
+    validator_payload = llm_result.copy() if isinstance(llm_result, dict) else {}
+    validator_payload.pop("correlation_id", None)
+    validator_result = await call_service("POST", settings.validator_url, json=validator_payload)
 
     # Step 4: TTS
     tts_payload = {"text": text}
