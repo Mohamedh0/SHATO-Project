@@ -152,7 +152,7 @@ async def call_service(method: str, url: str, **kwargs):
     header_key, header_val = correlation_header()
     headers = kwargs.pop("headers", {}) or {}
     headers.setdefault(header_key, header_val)
-    async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+    async with httpx.AsyncClient(timeout=240, headers=headers) as client:
         try:
             resp = await client.request(method, url, **kwargs)
             resp.raise_for_status()
@@ -254,13 +254,27 @@ async def voice_flow(audio: UploadFile = File(...)):
     llm_payload = {"text": text, "correlation_id": current_cid}
     llm_result = await call_service("POST", settings.llm_url, json=llm_payload)
 
+    if not isinstance(llm_result, dict) or "command" not in llm_result or "command_params" not in llm_result or "verbal_response" not in llm_result:
+        raise HTTPException(status_code=500, detail="LLM service returned invalid response")
+
     # Step 3: Validation
-    validator_payload = llm_result.copy() if isinstance(llm_result, dict) else {}
-    validator_payload.pop("correlation_id", None)
+    validator_payload = {
+        "command": llm_result["command"],
+        "command_params": llm_result["command_params"]
+    }
+    validator_payload.pop("correlation_id", None)  # Remove if present to match ExecuteRequest
     validator_result = await call_service("POST", settings.validator_url, json=validator_payload)
 
-    # Step 4: TTS
-    tts_payload = {"text": text}
+    # Check if validation was successful (assuming 200 status indicates success)
+    if validator_result.get("status_code", 200) != 200:
+        logger.error("validation_failed", correlation_id=current_cid, detail=validator_result)
+        raise HTTPException(status_code=400, detail="Command validation failed", headers={settings.correlation_header: current_cid})
+
+    # Step 4: TTS with verbal_response
+    tts_payload = {
+        "text": llm_result["verbal_response"],
+        "correlation_id": current_cid
+    }
     tts_result = await call_service("POST", settings.tts_url, json=tts_payload)
 
     return {
