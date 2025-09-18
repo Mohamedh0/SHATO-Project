@@ -9,6 +9,8 @@ from api.utils import (
     generate_command,
 )
 from pydantic import BaseModel
+
+# Enable arbitrary types for Pydantic models (if needed for future extensions)
 BaseModel.model_config = {"arbitrary_types_allowed": True}
 
 app = FastAPI(title="Robot Command API")
@@ -43,28 +45,32 @@ async def generate_robot_command(
     try:
         command_json = generate_command(body.text)
         if "error" in command_json:
-            log_response(correlation_id, 500, f"Failed to parse JSON from model: {command_json['raw_output']}")
+            log_response(correlation_id, 500, f"[ROBOT-VALIDATOR-ERROR] Failed to parse JSON from model: {command_json['raw_output']}")
             raise HTTPException(
                 status_code=500,
                 detail={"error": command_json["error"], "raw_output": command_json["raw_output"]},
                 headers={"X-Correlation-ID": correlation_id},
             )
-        # Validate command_json structure
-        if "command" not in command_json or "command_params" not in command_json:
-            log_response(correlation_id, 500, f"Invalid command structure: {command_json}")
+        
+        # Validate required fields for SuccessResponse
+        if "command" not in command_json or "command_params" not in command_json or "verbal_response" not in command_json:
+            log_response(correlation_id, 422, f"[ROBOT-VALIDATOR-ERROR] Invalid command structure: missing {['command', 'command_params', 'verbal_response'] - set(command_json.keys())}")
             raise HTTPException(
-                status_code=500,
-                detail={"error": "Invalid command structure", "raw_output": str(command_json)},
+                status_code=422,
+                detail={"error": "Invalid command structure", "missing_fields": ['command', 'command_params', 'verbal_response'] - set(command_json.keys()), "raw_output": str(command_json)},
                 headers={"X-Correlation-ID": correlation_id},
             )
+        
         # Merge correlation_id into the response
         command_json["correlation_id"] = correlation_id
-        log_response(correlation_id, 200, f"Generated command: {command_json}")
+        log_response(correlation_id, 200, f"[ROBOT-VALIDATOR-SUCCESS] Generated command: {command_json}")
         return command_json
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        log_response(correlation_id, 500, f"Error: {str(e)}")
+        log_response(correlation_id, 500, f"[ROBOT-VALIDATOR-ERROR] Unexpected error: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail={"error": str(e)},
+            detail={"error": "Internal server error", "message": str(e)},
             headers={"X-Correlation-ID": correlation_id},
         )

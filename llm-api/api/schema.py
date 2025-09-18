@@ -23,6 +23,20 @@ class CommandRequest(BaseModel):
 
 class SuccessResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    command: str = Field(..., description="The command name")
-    command_params: Dict[str, Any] = Field(..., description="Command parameters")
+    command: str = Field(..., description="The command name (e.g., 'move_to', 'rotate', 'start_patrol')")
+    command_params: Dict[str, Any] = Field(
+        ...,
+        description="Command parameters conforming to the strict robot command schema",
+        json_schema_extra={
+            "example": {
+                "x": 10.0,
+                "y": -5.0
+            }
+        }
+    )
+    verbal_response: str = Field(
+        ...,
+        description="Natural spoken confirmation for TTS",
+        json_schema_extra={"example": "Heading over there now—adventure awaits!"}
+    )
     correlation_id: str = Field(..., description="Unique correlation ID for tracing requests")
