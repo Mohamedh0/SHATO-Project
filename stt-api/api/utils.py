@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 # Load Whisper model once at startup
-model = whisper.load_model("tiny")
+model = whisper.load_model("base.en")
 
 def transcribe_audio(audio_data: bytes) -> tuple[str, str]:
     """
