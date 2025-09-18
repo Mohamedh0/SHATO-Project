@@ -6,7 +6,7 @@ from fastapi import Request
 from loguru import logger
 from llama_cpp import Llama
 
-# Logging setup
+# ---------- Logging setup ----------
 logger.remove()
 logger.add(
     sink="logs/app.log",
@@ -27,7 +27,7 @@ def log_response(correlation_id: str, status_code: int, message: str = ""):
         f"Response status: {status_code}, message: {message}"
     )
 
-# JSON extraction helper
+# ---------- JSON extraction helper ----------
 def extract_first_json(text: str) -> dict:
     json_str = ""
     brace_count = 0
@@ -57,33 +57,49 @@ def extract_first_json(text: str) -> dict:
 
     return {"error": "no_json_found", "raw_output": text}
 
-# Prompts & LLM setup
+# ---------- Prompts & LLM setup ----------
 def load_prompts():
     config_path = Path("/app/config/prompts.yaml")
     if not config_path.exists():
         logger.warning("Prompts config not found at /app/config/prompts.yaml")
-        return {"system_prompt": "", "user_prompt_template": "{instruction}"}
+        # Minimal fallback for SHATO if prompts.yaml is missing
+        return {
+            "system_prompt": "You are SHATO, a robot assistant. Convert instructions to valid JSON commands.",
+            "user_prompt_template": "Convert this natural language instruction to a robot command: {instruction}\nRespond with ONLY the JSON."
+        }
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
 prompts_config = load_prompts()
-SYSTEM_PROMPT = prompts_config.get("system_prompt", "")
-USER_PROMPT_TEMPLATE = prompts_config.get("user_prompt_template", "{instruction}")
+SYSTEM_PROMPT = prompts_config.get("system_prompt")
+USER_PROMPT_TEMPLATE = prompts_config.get("user_prompt_template")
 
+# Load Llama-3.2-3B-Instruct (Q4_K_S) model
 llm = Llama(
-    model_path="/app/models/qwen2-1_5b-instruct-q4_k_m.gguf",
+    model_path="/app/models/llama-3.2-3b-instruct-q4ks.gguf",
     n_ctx=4096,
     n_threads=8,
+    n_gpu_layers=0,  # change >0 if you want GPU acceleration
 )
 
+# ---------- Generation ----------
 def generate_command(instruction: str) -> dict:
-    """Generate a robot command from the LLM and return parsed JSON."""
-    prompt = SYSTEM_PROMPT + "\n" + USER_PROMPT_TEMPLATE.format(instruction=instruction)
+    correlation_id = str(uuid.uuid4())
+    logger.bind(correlation_id=correlation_id).info(f"Generating command for instruction: {instruction}")
+    
+    prompt = f"{SYSTEM_PROMPT}\n{USER_PROMPT_TEMPLATE.format(instruction=instruction)}"
     output = llm(
         prompt,
-        max_tokens=128,
-        temperature=0.7,
-        stop=["User:"],
+        max_tokens=256,
+        temperature=0.5,  # Adjusted for some variety in verbal_response
+        stop=["</s>", "User:"]
     )
     raw_text = output["choices"][0]["text"].strip()
-    return extract_first_json(raw_text)
+    logger.bind(correlation_id=correlation_id).info(f"LLM raw output: {raw_text}")
+    
+    command_json = extract_first_json(raw_text)
+    if "error" in command_json:
+        logger.bind(correlation_id=correlation_id).warning(f"JSON extraction failed: {command_json['error']}")
+        return {"error": command_json["error"], "raw_output": command_json["raw_output"]}
+
+    return command_json
