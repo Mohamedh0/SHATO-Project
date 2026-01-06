@@ -219,26 +219,6 @@ All commands follow a strict JSON schema validated by Pydantic models to ensure 
 
 ---
 
-## 🔍 Observability
-
-SHATO includes comprehensive observability features:
-
-### Logging
-- **Structured JSON logging** via `structlog`
-- **Correlation IDs** for request tracing across services
-- Configurable log levels via `LOG_LEVEL` environment variable
-
-### Metrics
-- **Prometheus** metrics exposed at `/metrics`
-- Toggle with `ENABLE_METRICS=true/false`
-
-### Distributed Tracing
-- **OpenTelemetry** integration with OTLP export
-- Enable with `ENABLE_TRACING=true`
-- Configure endpoint via `OTLP_ENDPOINT`
-
----
-
 ## 📁 Project Structure
 
 ```
@@ -298,21 +278,4 @@ pip install -r requirements.txt
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `HF_TOKEN` | HuggingFace API token | Required |
-| `LOG_LEVEL` | Logging level | `INFO` |
-| `ENABLE_METRICS` | Enable Prometheus metrics | `true` |
-| `ENABLE_TRACING` | Enable OpenTelemetry tracing | `false` |
-| `OTLP_ENDPOINT` | OTLP collector endpoint | — |
-
 ---
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-
