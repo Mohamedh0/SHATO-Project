@@ -1,137 +1,319 @@
-# Project SHATO – Voice-Controlled Robotic Assistant  
+<div align="center">
 
-## 📌 Overview  
-Project SHATO aims to transform an autonomous robot into an **intelligent, voice-controlled assistant**.  
-The system builds a **Speech-to-Text → LLM → Text-to-Speech pipeline**, ensuring every generated command is **validated against a strict schema** before being executed by the simulated robot control system.  
+# 🤖 SHATO — Smart Home Autonomous Task Operator
 
-Key Features:  
-- End-to-end voice-to-action pipeline.  
-- Strict validation to prevent hallucinated or unsafe commands.  
-- Modular **microservices architecture** with containerization.  
-- Live interaction via **Gradio/Streamlit web interface**.  
+**An Intelligent Voice-Controlled Robotic Assistant**
 
----
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-## 🏗️ System Architecture  
+*Transform natural language into validated robot commands through an end-to-end voice pipeline*
 
-The project uses a **microservices architecture**, containerized and orchestrated via Docker Compose.  
+[Getting Started](#-getting-started) • [Architecture](#-architecture) • [API Reference](#-api-reference) • [Contributing](#-contributing)
 
-### Services  
-1. **Orchestrator Service (`orchestrator-api`)**  
-   - Framework: FastAPI  
-   - Routes data between services and ensures validation.  
-
-2. **Speech-to-Text Service (`stt-service`)**  
-   - Framework: FastAPI, TorchServe (or similar)  
-   - Model: Whisper-Base (or another deep learning STT model).  
-
-3. **LLM Brain Service (`llm-service`)**  
-   - Framework: FastAPI, Llama_cpp 
-   - Maps natural language → valid robot commands.  
-   - Outputs: JSON command + verbal response.  
-
-4. **Text-to-Speech Service (`tts-service`)**  
-   - Framework: FastAPI, TTS 
-   - Model: Any deep learning TTS model.  
-
-5. **User Interface (`ui-service`)**  
-   - Framework: Gradio  
-   - Provides a web interface with a “Record” button.  
-
-6. **Robot Validator & Control Service (`robot-validator-api`)**  
-   - Framework: FastAPI 
-   - Validates commands against schema.  
-   - Logs success/error messages.  
+</div>
 
 ---
 
-## 📜 Strict Robot Command Schema  
+## 📖 Overview
 
-Every command must follow the format:  
+**SHATO** (Smart Home Autonomous Task Operator) is a production-ready microservices platform that transforms an autonomous robot into an intelligent, voice-controlled assistant. The system implements a complete **Speech-to-Text → LLM → Text-to-Speech** pipeline with strict command validation to ensure safe and reliable robot operations.
 
-```json
-{
-  "command": "<command_name>",
-  "command_params": { ... },
-  "verbal_response":"LLM generate that",
-}
-```
+### ✨ Key Features
 
-### Allowed Commands  
-
-#### 1. `move_to`  
-- **Parameters:**  
-  - `x` (float, required)  
-  - `y` (float, required)  
-
-```json
-{
-  "command": "move_to",
-  "command_params": { "x": 10, "y": -5 },
-}
-```
-
-#### 2. `rotate`  
-- **Parameters:**  
-  - `angle` (float, required)  
-  - `direction` ("clockwise" | "counter-clockwise")  
-
-```json
-{
-  "command": "rotate",
-  "command_params": { "angle": 90, "direction": "clockwise" }
-}
-```
-
-#### 3. `start_patrol`  
-- **Parameters:**  
-  - `route_id` (string, required; one of ["first_floor", "bedrooms", "second_floor"])  
-  - `speed` ("slow" | "medium" | "fast", optional; default = "medium")  
-  - `repeat_count` (integer ≥1 or -1 for continuous; optional; default = 1)  
-
-```json
-{
-  "command": "start_patrol",
-  "command_params": { "route_id": "first_floor", "speed": "fast", "repeat_count": 5 }
-}
-```
+| Feature | Description |
+|---------|-------------|
+| 🎤 **Voice-to-Action Pipeline** | Seamless conversion from spoken commands to robot actions |
+| 🛡️ **Strict Schema Validation** | Prevents hallucinated or unsafe commands from execution |
+| 🏗️ **Microservices Architecture** | Scalable, maintainable, and independently deployable services |
+| 📊 **Observability** | Built-in logging, metrics (Prometheus), and distributed tracing (OpenTelemetry) |
+| 🔗 **Correlation Tracking** | End-to-end request tracing across all services |
+| 🌐 **Web Interface** | Interactive Gradio-based UI for real-time voice interaction |
 
 ---
 
-## ⚙️ Installation & Setup  
+## 🏗️ Architecture
 
-### Prerequisites  
-- [Docker](https://docs.docker.com/get-docker/)  
-- [Docker Compose](https://docs.docker.com/compose/install/)  
+SHATO employs a **microservices architecture**, fully containerized and orchestrated via Docker Compose.
 
-### Steps  
-1. Clone this repository:  
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              USER INTERFACE                                  │
+│                         (Gradio Web App - :7860)                            │
+└─────────────────────────────────┬───────────────────────────────────────────┘
+                                  │ Audio Upload
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           ORCHESTRATOR SERVICE                               │
+│                            (FastAPI - :8500)                                 │
+│  • Routes requests between services    • Correlation ID propagation          │
+│  • Structured logging (structlog)      • Prometheus metrics & OTLP tracing  │
+└──────┬──────────────────┬──────────────────┬──────────────────┬─────────────┘
+       │                  │                  │                  │
+       ▼                  ▼                  ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  STT Service │  │  LLM Service │  │  Validator   │  │  TTS Service │
+│    :8002     │  │    :8000     │  │    :8001     │  │    :8003     │
+├──────────────┤  ├──────────────┤  ├──────────────┤  ├──────────────┤
+│ Whisper ASR  │  │ Llama.cpp    │  │ Pydantic     │  │ Coqui TTS    │
+│ Audio → Text │  │ NL → Command │  │ Schema Valid │  │ Text → Audio │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
+```
+
+### 🔧 Service Overview
+
+| Service | Port | Technology | Responsibility |
+|---------|------|------------|----------------|
+| **UI Service** | `7860` | Gradio | Web interface for voice recording and playback |
+| **Orchestrator** | `8500` | FastAPI, structlog | Pipeline coordination, logging, observability |
+| **STT Service** | `8002` | FastAPI, Whisper | Speech-to-Text transcription |
+| **LLM Service** | `8000` | FastAPI, Llama.cpp | Natural language to command mapping |
+| **Validator** | `8001` | FastAPI, Pydantic | Command schema validation and execution |
+| **TTS Service** | `8003` | FastAPI, Coqui TTS | Text-to-Speech synthesis |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) (v20.10+)
+- [Docker Compose](https://docs.docker.com/compose/install/) (v2.0+)
+- [HuggingFace Account](https://huggingface.co/) (for model access token)
+
+### Installation
+
+1. **Clone the repository**
    ```bash
    git clone https://github.com/Mohamedh0/SHATO-Project.git
    cd SHATO-Project
    ```
 
-2. Make the .env.example to .env and get the HuggingFace Token
-   - `HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx`
+2. **Configure environment variables**
+   ```bash
+   # Create .env file from template
+   cp .env.example .env
+   
+   # Add your HuggingFace token
+   echo "HF_TOKEN=hf_your_token_here" >> .env
+   ```
 
-3. Build and run all services:  
+3. **Build and launch all services**
    ```bash
    docker-compose up --build
    ```
 
-4. Access the UI:  
-   - Open browser at: `http://localhost:7860`  
+4. **Access the application**
+   
+   Open your browser and navigate to: **http://localhost:7860**
+
+### Quick Verification
+
+```bash
+# Check service health
+curl http://localhost:8500/health      # Orchestrator
+curl http://localhost:8000/health      # LLM Service
+curl http://localhost:8001/health      # Validator
+curl http://localhost:8002/health      # STT Service
+curl http://localhost:8003/health      # TTS Service
+```
 
 ---
 
-## ✅ Definition of Done  
+## 📜 Robot Command Schema
 
-The project is complete when:  
-- All six services run with a single `docker-compose up`.  
-- UI allows live voice interaction.  
-- Valid commands are accepted and logged by `robot-validator-api`.  
-- Invalid commands are rejected and logged properly.  
-- Project hosted on GitHub with PR-based workflow.  
-- This README provides full setup/run instructions.  
+All commands follow a strict JSON schema validated by Pydantic models to ensure safety and correctness.
+
+### Command Structure
+
+```json
+{
+  "command": "<command_name>",
+  "command_params": { /* parameters */ },
+  "verbal_response": "<natural language confirmation>"
+}
+```
+
+### Available Commands
+
+<details>
+<summary><strong>🚗 move_to</strong> — Navigate to specific coordinates</summary>
+
+| Parameter | Type | Required | Constraints | Description |
+|-----------|------|----------|-------------|-------------|
+| `x` | float | ✅ | -100 to 100 | X coordinate |
+| `y` | float | ✅ | -100 to 100 | Y coordinate |
+
+**Example:**
+```json
+{
+  "command": "move_to",
+  "command_params": { "x": 10.0, "y": -5.0 },
+  "verbal_response": "On my way to that spot!"
+}
+```
+</details>
+
+<details>
+<summary><strong>🔄 rotate</strong> — Rotate by specified angle</summary>
+
+| Parameter | Type | Required | Options | Description |
+|-----------|------|----------|---------|-------------|
+| `angle` | float | ✅ | 0-360 | Rotation angle in degrees |
+| `direction` | string | ✅ | `clockwise`, `counter-clockwise` | Rotation direction |
+
+**Example:**
+```json
+{
+  "command": "rotate",
+  "command_params": { "angle": 90.0, "direction": "clockwise" },
+  "verbal_response": "Spinning into position!"
+}
+```
+</details>
+
+<details>
+<summary><strong>🛡️ start_patrol</strong> — Begin patrolling a predefined route</summary>
+
+| Parameter | Type | Required | Options | Default | Description |
+|-----------|------|----------|---------|---------|-------------|
+| `route_id` | string | ✅ | `first_floor`, `bedrooms`, `second_floor` | — | Patrol route identifier |
+| `speed` | string | ❌ | `slow`, `medium`, `fast` | `medium` | Movement speed |
+| `repeat_count` | integer | ❌ | ≥1 or -1 (infinite) | 1 | Number of patrol cycles |
+
+**Example:**
+```json
+{
+  "command": "start_patrol",
+  "command_params": { 
+    "route_id": "first_floor", 
+    "speed": "fast", 
+    "repeat_count": 5 
+  },
+  "verbal_response": "Kicking off the patrol—let's roll!"
+}
+```
+</details>
 
 ---
+
+## 📡 API Reference
+
+### Orchestrator Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/voice_flow` | Complete voice-to-action pipeline |
+| `GET` | `/health` | Service health status |
+| `GET` | `/metrics` | Prometheus metrics (when enabled) |
+
+### Service-Specific Endpoints
+
+| Service | Endpoint | Method | Description |
+|---------|----------|--------|-------------|
+| STT | `/transcribe` | `POST` | Audio file → Text |
+| LLM | `/command` | `POST` | Text → Robot command |
+| Validator | `/execute_command` | `POST` | Validate and execute command |
+| TTS | `/speak` | `POST` | Text → Audio (base64) |
+
+---
+
+## 🔍 Observability
+
+SHATO includes comprehensive observability features:
+
+### Logging
+- **Structured JSON logging** via `structlog`
+- **Correlation IDs** for request tracing across services
+- Configurable log levels via `LOG_LEVEL` environment variable
+
+### Metrics
+- **Prometheus** metrics exposed at `/metrics`
+- Toggle with `ENABLE_METRICS=true/false`
+
+### Distributed Tracing
+- **OpenTelemetry** integration with OTLP export
+- Enable with `ENABLE_TRACING=true`
+- Configure endpoint via `OTLP_ENDPOINT`
+
+---
+
+## 📁 Project Structure
+
+```
+SHATO-Project/
+├── 📄 docker-compose.yml      # Container orchestration
+├── 📄 README.md               # This file
+├── 📁 orchestrator-api/       # Central orchestration service
+│   ├── main.py                # FastAPI application
+│   ├── config.py              # Configuration settings
+│   └── requirements.txt       # Python dependencies
+├── 📁 llm-api/                # LLM-based command generation
+│   ├── api/                   # API endpoints and utilities
+│   └── config/                # Prompt templates and model config
+├── 📁 stt-api/                # Speech-to-Text service
+│   └── api/                   # Whisper-based transcription
+├── 📁 tts-api/                # Text-to-Speech service
+│   └── api/                   # Coqui TTS integration
+├── 📁 robot-validator-api/    # Command validation & execution
+│   ├── api/                   # Pydantic schema validation
+│   └── tests/                 # Unit tests
+└── 📁 ui-service/             # Gradio web interface
+    └── main.py                # UI application
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run validator tests
+cd robot-validator-api
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=api --cov-report=html
+```
+
+---
+
+## 🛠️ Development
+
+### Local Development Setup
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+.\venv\Scripts\activate   # Windows
+
+# Install dependencies for a specific service
+cd <service-directory>
+pip install -r requirements.txt
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `HF_TOKEN` | HuggingFace API token | Required |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `ENABLE_METRICS` | Enable Prometheus metrics | `true` |
+| `ENABLE_TRACING` | Enable OpenTelemetry tracing | `false` |
+| `OTLP_ENDPOINT` | OTLP collector endpoint | — |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+
