@@ -39,15 +39,15 @@ SHATO employs a **microservices architecture**, fully containerized and orchestr
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER INTERFACE                                  │
+│                              USER INTERFACE                                 │
 │                         (Gradio Web App - :7860)                            │
 └─────────────────────────────────┬───────────────────────────────────────────┘
                                   │ Audio Upload
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           ORCHESTRATOR SERVICE                               │
-│                            (FastAPI - :8500)                                 │
-│  • Routes requests between services    • Correlation ID propagation          │
+│                           ORCHESTRATOR SERVICE                              │
+│                            (FastAPI - :8500)                                │
+│  • Routes requests between services    • Correlation ID propagation         │
 │  • Structured logging (structlog)      • Prometheus metrics & OTLP tracing  │
 └──────┬──────────────────┬──────────────────┬──────────────────┬─────────────┘
        │                  │                  │                  │
